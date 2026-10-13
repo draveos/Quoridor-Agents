@@ -50,6 +50,10 @@
         <g id="layer-ghost" aria-hidden="true"></g>
         <g id="layer-fences"></g>
       </svg>
+      <div class="board3d-wrap" id="board3d-wrap" hidden>
+        <canvas id="board3d" class="board3d" tabindex="-1" aria-label="쿼리도 판 (3D). 조작은 2D 판과 같습니다. 키보드로 두려면 2D 보기로 바꾸세요."></canvas>
+        <div class="think3d" id="think3d" hidden></div>
+      </div>
       <p class="sr-only" id="sr-state"></p>
     </div>
     <div class="side-col">
@@ -63,8 +67,9 @@
         <button type="button" id="fence-toggle" aria-pressed="false">벽 놓기 <kbd>F</kbd></button>
         <button type="button" id="orient-toggle" aria-pressed="false" disabled>가로 <kbd>R</kbd></button>
         <button type="button" id="restart">다시 시작</button>
+        <button type="button" id="view-toggle" aria-pressed="false" hidden>3D 보기</button>
       </div>
-      <p class="hint">말을 위쪽 끝줄까지 옮기면 이깁니다. 벽은 10장이고, 상대 길을 완전히 막는 자리에는 놓을 수 없습니다. 되돌리기는 없습니다.</p>
+      <p class="hint">말을 위쪽 끝줄까지 옮기면 이깁니다. 벽은 10장이고, 상대 길을 완전히 막는 자리에는 놓을 수 없습니다. 되돌리기는 없습니다. 3D 판에서 남은 벽은 판 왼쪽의 노란 블록으로 셉니다.</p>
     </div>
     <div class="banner" id="banner" role="status" aria-live="assertive" hidden>
       <span id="banner-text"></span>
@@ -90,6 +95,7 @@
   </footer>
 </div>
 <script src="rules.js"></script>
+<script src="view2d.js"></script>
 <script src="ui.js"></script>
 </body>
 </html>

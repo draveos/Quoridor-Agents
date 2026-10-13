@@ -1,15 +1,15 @@
 /* Quoridor Agents 판 UI. 사람은 아래에서 시작합니다. 규칙은 rules.js, 상대는 agents/<이름>.js 를 Web Worker 로 띄웁니다.
+ * 판 그리기는 렌더러에 맡깁니다. view2d.js(SVG)와 view3d.js(Three.js 복셀)가 같은 인터페이스(render, showGhost, clearGhost, focus, setActive)를 구현합니다.
+ * 폭 720px 이상이고 WebGL 이 되면 3D 가 기본, 아니면 2D 입니다. "3D 보기" 버튼으로 바꿉니다.
  * 에이전트 메시지 규약: {type:'think', id, side, state, budget} → {type:'move', id, action, stats}; {type:'reset', side} → {type:'ready'}.
  * Worker 를 만들 수 없으면(file:// 등) 같은 파일을 메인 스레드에 올려 globalThis.QAgent 로 두고, 그것도 없으면 최단 경로로 한 칸 전진합니다.
  * 부모 페이지 계약(iframe): postMessage {type:'portfolio:visible', visible:false} 를 받으면 진행 중 탐색은 두되 새 탐색을 시작하지 않습니다. */
 (function () {
   'use strict';
   const R = window.QRules;
-  const CELL = 40, GAP = 10, PAD = 8, STEP = CELL + GAP;
-  const NS = 'http://www.w3.org/2000/svg';
   const $ = s => document.querySelector(s);
-  const layers = { cells: $('#layer-cells'), walls: $('#layer-walls'), moves: $('#layer-moves'), pawns: $('#layer-pawns'), ghost: $('#layer-ghost'), fences: $('#layer-fences') };
   const boardEl = $('#board'), statusEl = $('#status'), statsEl = $('#stats'), srEl = $('#sr-state');
+  const wrap3d = $('#board3d-wrap'), canvas3d = $('#board3d'), badge3d = $('#think3d'), viewBtn = $('#view-toggle');
   const bannerEl = $('#banner'), bannerText = $('#banner-text'), bannerRestart = $('#banner-restart');
   const fenceBtn = $('#fence-toggle'), orientBtn = $('#orient-toggle'), restartBtn = $('#restart');
   const firstSel = $('#first'), budgetSel = $('#budget'), agentBtns = Array.from(document.querySelectorAll('.seg-btn[data-agent]'));
@@ -130,79 +130,58 @@
   probeAgent('claude').then(ok => markAgent('claude', ok));
   markAgent('codex', true);
 
-  /* ---------- 좌표 ---------- */
-  const yIdx = r => humanSide === 0 ? 8 - r : r;          // 사람이 항상 아래
-  const sx = c => PAD + c * STEP;
-  const sy = r => PAD + yIdx(r) * STEP;
-  const ix = c => sx(c) + CELL + GAP / 2;                  // 교차점 (r,c) 의 화면 중심
-  const iy = r => Math.min(sy(r), sy(r + 1)) + CELL + GAP / 2;
-  const el = (tag, attrs, cls) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (cls) n.setAttribute('class', cls); return n; };
+  /* ---------- 렌더러 (2D SVG, 3D 복셀) ---------- */
   const humanRow = r => (humanSide === 0 ? r + 1 : 9 - r);  // 사람 기준 "아래에서 n번째 줄"
-
-  /* ---------- 그리기 ---------- */
-  function drawCells() {
-    layers.cells.textContent = '';
-    for (let r = 0; r < 9; r++) for (let c = 0; c < 9; c++) {
-      const goalH = (humanSide === 0 && r === 8) || (humanSide === 1 && r === 0);
-      const goalA = (agentSide === 0 && r === 8) || (agentSide === 1 && r === 0);
-      layers.cells.appendChild(el('rect', { x: sx(c), y: sy(r), width: CELL, height: CELL, rx: 6 }, 'cell' + (goalH ? ' goal-human' : goalA ? ' goal-agent' : '')));
-    }
+  const handlers = {
+    onMove: p => humanMove(p),
+    onFenceEnter: (r, c) => preview(r, c),
+    onFenceLeave: () => { if (armed < 0) clearGhost(); },
+    onFenceTap: (r, c, e) => tapFence(r, c, e)
+  };
+  const view2d = window.QView2D(boardEl, handlers);
+  let view3d = null, active = view2d, can3d = null, resetView = true;   // can3d: null 아직 모름, false 불가
+  function webglOk() {
+    try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch (e) { return false; }
   }
-  function wallRect(f, cls) {
-    const { r, c, orient: o } = R.fenceRC(f);
-    const t = GAP * 0.64;
-    return o === 'h'
-      ? el('rect', { x: sx(c), y: iy(r) - t / 2, width: 2 * CELL + GAP, height: t }, cls)
-      : el('rect', { x: ix(c) - t / 2, y: Math.min(sy(r), sy(r + 1)), width: t, height: 2 * CELL + GAP }, cls);
+  if (!wrap3d || !canvas3d || !webglOk()) can3d = false;
+  function load3d() {
+    if (view3d) return Promise.resolve(view3d);
+    if (can3d === false) return Promise.resolve(null);
+    let imp;
+    try { imp = new Function('u', 'return import(u)'); } catch (e) { can3d = false; return Promise.resolve(null); }
+    return imp('./view3d.js')
+      .then(m => { view3d = m.createView3D(canvas3d, handlers, { reduceMotion: () => reduceMotion.matches, badge: badge3d }); if (!view3d) can3d = false; else can3d = true; return view3d; })
+      .catch(() => { can3d = false; return null; });
+  }
+  const show = (el, on) => { if (!el) return; if (on) el.removeAttribute('hidden'); else el.setAttribute('hidden', ''); };   // SVG 에는 hidden 프로퍼티가 없다
+  function useView(v) {
+    if (active !== v) { active.setActive(false); active = v; resetView = true; active.setActive(true); }
+    show(boardEl, v === view2d);
+    show(wrap3d, v !== view2d);
+    if (viewBtn) { viewBtn.hidden = can3d === false; viewBtn.setAttribute('aria-pressed', String(v === view3d)); }
+    if (state) render();
+  }
+  function setView3d(on) {
+    if (!on) { useView(view2d); return; }
+    if (wrap3d) { show(wrap3d, true); show(boardEl, false); }         // 불러오는 동안 2D 가 잠깐 보이지 않게
+    load3d().then(v => { if (v) useView(v); else useView(view2d); });
   }
   function render() {
     const side = R.sideToMove(state);
     cachedAdj = R.buildAdj(state.walls);
     cachedMoves = R.legalMoves(state, cachedAdj);
     cachedAvail = R.availableWords(state.walls);
-    // 벽
-    layers.walls.textContent = '';
-    state.walls.forEach((f, i) => {
-      layers.walls.appendChild(wallRect(f, 'wall ' + (wallOwner[i] === humanSide ? 'human' : 'agent')));
-    });
-    // 말
-    layers.pawns.textContent = '';
-    for (let s = 0; s < 2; s++) {
-      const p = state.pawns[s], r = (p / 9) | 0, c = p % 9;
-      layers.pawns.appendChild(el('circle', { cx: sx(c) + CELL / 2, cy: sy(r) + CELL / 2, r: 14 }, 'pawn ' + (s === humanSide ? 'human' : 'agent')));
-    }
-    // 이동 후보
-    layers.moves.textContent = '';
     const canAct = !over && !thinking && side === humanSide;
-    if (canAct && mode === 'move') {
-      for (const p of cachedMoves) {
-        const r = (p / 9) | 0, c = p % 9;
-        const g = el('g', { tabindex: 0, role: 'button', 'aria-label': `아래에서 ${humanRow(r)}번째 줄, 왼쪽에서 ${c + 1}번째 칸으로 이동` }, 'move');
-        g.appendChild(el('rect', { x: sx(c), y: sy(r), width: CELL, height: CELL }));
-        g.appendChild(el('circle', { cx: sx(c) + CELL / 2, cy: sy(r) + CELL / 2, r: 5 }));
-        g.addEventListener('click', () => humanMove(p));
-        g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); humanMove(p); } });
-        layers.moves.appendChild(g);
-      }
-    }
-    // 울타리 히트 영역
-    layers.fences.textContent = '';
-    if (canAct && mode === 'fence') {
-      for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
-        layers.fences.appendChild(el('circle', { cx: ix(c), cy: iy(r), r: 2.2 }, 'mark'));
-      }
-      for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
-        const hit = el('rect', { x: ix(c) - STEP / 2, y: iy(r) - STEP / 2, width: STEP, height: STEP, tabindex: 0, role: 'button', 'aria-label': `${orient === 'h' ? '가로' : '세로'} 벽, 아래에서 ${humanRow(r)}번째 줄과 ${humanRow(r + 1)}번째 줄 사이, 왼쪽에서 ${c + 1}번째 칸 옆` }, 'fence-hit');
-        hit.dataset.r = r; hit.dataset.c = c;
-        hit.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') preview(r, c); });
-        hit.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && armed < 0) clearGhost(); });
-        hit.addEventListener('focus', () => preview(r, c));
-        hit.addEventListener('blur', () => { if (armed < 0) clearGhost(); });
-        hit.addEventListener('click', e => tapFence(r, c, e));
-        hit.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); placeFence(R.fenceId(r, c, orient)); } });
-        layers.fences.appendChild(hit);
-      }
-    }
+    active.render({
+      state, humanSide, agentSide,
+      legalMoves: canAct && mode === 'move' ? cachedMoves : [],
+      fenceMode: canAct && mode === 'fence',
+      orient, wallOwner,
+      turnSide: over ? -1 : side,
+      thinking, over, agentName: agentName(),
+      reset: resetView
+    });
+    resetView = false;
     if (!(canAct && mode === 'fence')) clearGhost();
     // 점수판, 버튼
     agentNameEl.textContent = agentName();
@@ -219,12 +198,11 @@
     const hp = state.pawns[humanSide], ap = state.pawns[agentSide];
     srEl.textContent = `내 말은 아래에서 ${humanRow((hp / 9) | 0)}번째 줄, 왼쪽에서 ${hp % 9 + 1}번째 칸. ${agentName()} 말은 아래에서 ${humanRow((ap / 9) | 0)}번째 줄, 왼쪽에서 ${ap % 9 + 1}번째 칸. 벽은 ${state.walls.length}개 놓였습니다.`;
   }
-  function clearGhost() { layers.ghost.textContent = ''; }
+  function clearGhost() { active.clearGhost(); }
   function preview(r, c) {
     const f = R.fenceId(r, c, orient);
-    clearGhost();
     const why = R.fenceCheck(state, f, cachedAvail, cachedAdj);
-    layers.ghost.appendChild(wallRect(f, 'ghost ' + (why ? 'bad' : 'ok')));
+    active.showGhost(f, !why);
     if (why) setStatus(reasonText(why)); else if (armed === f) setStatus('같은 자리를 한 번 더 누르면 벽을 놓습니다.'); else setStatus(mode === 'fence' ? fenceHint() : '');
     return why;
   }
@@ -262,7 +240,7 @@
   }
   function afterHuman() {
     render();
-    boardEl.focus({ preventScroll: true });
+    active.focus();
     if (!checkEnd()) requestAgent();
   }
   function toggleFence() {
@@ -359,7 +337,7 @@
     mode = 'move'; orient = 'h'; armed = -1; thinking = false; over = false; pendingThink = false;
     bannerEl.hidden = true; statsEl.textContent = '';
     resetAgent();
-    drawCells();
+    resetView = true;
     render();
     setStatus(humanSide === 0 ? moveHint() : `${agentName()} 가 먼저 둡니다.`);
     requestAgent();
@@ -376,6 +354,7 @@
   orientBtn.addEventListener('click', toggleOrient);
   restartBtn.addEventListener('click', start);
   bannerRestart.addEventListener('click', start);
+  if (viewBtn) viewBtn.addEventListener('click', () => setView3d(active !== view3d));
   firstSel.addEventListener('change', () => { if (state.turn === 0 && !thinking) start(); });
   budgetSel.addEventListener('change', () => { budget = Number(budgetSel.value) || 400; });
   for (const b of agentBtns) b.addEventListener('click', () => pickAgent(b.dataset.agent));
@@ -392,5 +371,7 @@
     if (visible && pendingThink) requestAgent();
   });
 
+  const wide = matchMedia('(min-width: 720px)').matches;   // 데스크톱(720px 이상, 마우스)은 3D 가 기본, 그 외는 2D. 버튼은 WebGL 이 되면 항상 보인다
   start();
+  if (can3d !== false && wide && !coarse) setView3d(true); else useView(view2d);
 })();

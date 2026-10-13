@@ -1,5 +1,12 @@
 # Third-party notices
 
+## three.js r184
+
+The 3D board (`view3d.js`) uses three.js, bundled as `vendor/three.module.js` and `vendor/three.core.js`.
+
+- Source: https://github.com/mrdoob/three.js
+- License: MIT, Copyright 2010-2026 three.js authors. Full text in `vendor/THREE-LICENSE`.
+
 ## pyquoridor 0.0.5
 
 The rule engine (`rules.js`) ports part of the move, jump, fence-overlap and

@@ -57,6 +57,20 @@ a{color:var(--blue)}
 .ghost.bad{fill:var(--red);fill-opacity:.55}
 .mark{fill:#c9d1e0;pointer-events:none}
 
+/* 3D 판: 아레나의 픽셀 하늘 배경 위에 복셀 판. 캔버스 크기는 CSS 가 정하고 렌더러가 따라간다 */
+.board[hidden],.board3d-wrap[hidden],.board3d[hidden],.think3d[hidden]{display:none}
+.board3d-wrap{position:relative;width:100%;max-width:456px;margin:0 auto;border:1px solid #1c2233;border-radius:12px;overflow:hidden;background:
+  radial-gradient(circle at 20% 10%,rgba(79,209,197,.08),transparent 35%),
+  radial-gradient(circle at 80% 90%,rgba(255,183,77,.07),transparent 35%),
+  repeating-linear-gradient(0deg,transparent 0 15px,rgba(255,255,255,.012) 15px 16px),
+  repeating-linear-gradient(90deg,transparent 0 15px,rgba(255,255,255,.012) 15px 16px),
+  linear-gradient(180deg,#0a0c14 0%,#0a0c14 30%,#0e1322 30%,#0e1322 60%,#121a2e 60%,#121a2e 100%)}
+.board3d{display:block;width:100%;aspect-ratio:456/400;touch-action:manipulation;user-select:none;-webkit-user-select:none;image-rendering:pixelated}
+.board3d:focus{outline:none}
+.board3d:focus-visible{outline:3px solid #849bdf;outline-offset:-3px}
+.think3d{position:absolute;left:12px;top:10px;padding:4px 9px;border:2px solid #000;background:#10131c;color:#4fd1c5;font:600 11px/1.5 Menlo,monospace;letter-spacing:.06em;box-shadow:2px 2px 0 #000;pointer-events:none;animation:think-blink 1.2s steps(2,end) infinite}
+@keyframes think-blink{50%{opacity:.55}}
+
 /* 옆 칸 */
 .side-col{display:flex;flex-direction:column;gap:12px;min-width:0}
 .scoreboard{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -104,6 +118,7 @@ a{color:var(--blue)}
 }
 @media(prefers-reduced-motion:reduce){
   .dots span{animation:none;opacity:.6}
+  .think3d{animation:none}
   .controls button,.move rect,.seg-btn{transition:none}
   .controls button:hover{transform:none}
 }
