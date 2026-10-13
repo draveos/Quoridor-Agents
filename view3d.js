@@ -225,9 +225,29 @@ export function createView3D(canvas, handlers, opts) {
     return [fenceR(zi), c];
   }
   function hintAt() { const hit = ray.intersectObjects(hintGroup.children, false)[0]; return hit ? hit.object : null; }
-  canvas.addEventListener('pointerdown', e => { lastPointerType = e.pointerType || 'mouse'; });
+  // ── 카메라 조작: 드래그로 돌리고(θ, φ), 휠로 당기고(r), 더블클릭이면 원래 각도로. 4px 넘게 끌면 그 클릭은 수로 치지 않는다
+  const HOME = { theta: orbit.theta, phi: orbit.phi, r: orbit.r };
+  let drag = null, dragged = false;
+  canvas.addEventListener('pointerdown', e => {
+    lastPointerType = e.pointerType || 'mouse';
+    drag = { x: e.clientX, y: e.clientY, theta: orbit.theta, phi: orbit.phi, id: e.pointerId }; dragged = false;
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+  });
   canvas.addEventListener('pointermove', e => {
-    if (!cur || e.pointerType !== 'mouse') return;
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!dragged && Math.hypot(dx, dy) < 4) return;
+    dragged = true;
+    orbit.theta = drag.theta - dx * 0.006;
+    orbit.phi = Math.min(1.3, Math.max(0.3, drag.phi - dy * 0.005));
+    placeCamera(); requestFrame();
+  });
+  const endDrag = e => { if (drag && e.pointerId === drag.id) { try { canvas.releasePointerCapture(e.pointerId); } catch (_) {} drag = null; } };
+  canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('wheel', e => { e.preventDefault(); orbit.r = Math.min(32, Math.max(13, orbit.r + e.deltaY * 0.02)); placeCamera(); requestFrame(); }, { passive: false });
+  canvas.addEventListener('dblclick', () => { Object.assign(orbit, HOME); placeCamera(); requestFrame(); });
+  canvas.addEventListener('pointermove', e => {
+    if (!cur || e.pointerType !== 'mouse' || dragged) return;
     setMouse(e);
     if (cur.fenceMode) {
       const rc = fenceAt(); if (!rc) return;
@@ -240,6 +260,7 @@ export function createView3D(canvas, handlers, opts) {
     if (lastHover) { lastHover = null; handlers.onFenceLeave(); }
   });
   canvas.addEventListener('click', e => {
+    if (dragged) { dragged = false; return; }
     if (!cur) return;
     setMouse(e);
     if (cur.fenceMode) { const rc = fenceAt(); if (rc) handlers.onFenceTap(rc[0], rc[1], { pointerType: lastPointerType }); return; }
