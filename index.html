@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quoridor Agents</title>
+<meta name="description" content="브라우저에서 쿼리도를 AI 에이전트와 둡니다. Codex 에이전트는 GPT 가, Claude 에이전트는 Agent Office(Claude) 가 작성했습니다. 서버 없이 순수 JS 로 동작합니다.">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="page">
+  <header class="head">
+    <h1>Quoridor Agents</h1>
+    <p class="lead">두 AI 에이전트 중 하나를 골라 직접 둡니다. Codex 에이전트는 GPT 가 작성했고, Claude 에이전트는 Agent Office(Claude) 가 작성했습니다.</p>
+  </header>
+
+  <section class="setup" aria-label="대국 설정">
+    <div class="field">
+      <span class="field-name" id="agent-label">상대</span>
+      <div class="seg" role="group" aria-labelledby="agent-label">
+        <button type="button" class="seg-btn" data-agent="codex" aria-pressed="true">Codex<small>GPT 작성</small></button>
+        <button type="button" class="seg-btn" data-agent="claude" aria-pressed="false" disabled>Claude<small>확인 중</small></button>
+      </div>
+    </div>
+    <label class="field">
+      <span class="field-name">생각 시간</span>
+      <select id="budget">
+        <option value="400" selected>0.4초</option>
+        <option value="1000">1초</option>
+        <option value="2000">2초</option>
+      </select>
+    </label>
+    <label class="field">
+      <span class="field-name">선공</span>
+      <select id="first">
+        <option value="0">나</option>
+        <option value="1">에이전트</option>
+      </select>
+    </label>
+  </section>
+
+  <main class="play" id="app">
+    <div class="board-col">
+      <svg id="board" class="board" viewBox="0 0 456 456" role="group" aria-label="쿼리도 판" tabindex="-1">
+        <g id="layer-cells"></g>
+        <g id="layer-walls"></g>
+        <g id="layer-moves"></g>
+        <g id="layer-pawns"></g>
+        <g id="layer-ghost" aria-hidden="true"></g>
+        <g id="layer-fences"></g>
+      </svg>
+      <p class="sr-only" id="sr-state"></p>
+    </div>
+    <div class="side-col">
+      <div class="scoreboard">
+        <div class="who who-agent"><span class="pawn-dot" aria-hidden="true"></span><span class="who-name" id="agent-name">Codex</span><span class="walls" id="walls-agent">벽 10</span></div>
+        <div class="who who-human"><span class="pawn-dot" aria-hidden="true"></span><span class="who-name">나</span><span class="walls" id="walls-human">벽 10</span></div>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+      <p class="stats" id="stats" aria-live="off"></p>
+      <div class="controls">
+        <button type="button" id="fence-toggle" aria-pressed="false">벽 놓기 <kbd>F</kbd></button>
+        <button type="button" id="orient-toggle" aria-pressed="false" disabled>가로 <kbd>R</kbd></button>
+        <button type="button" id="restart">다시 시작</button>
+      </div>
+      <p class="hint">말을 위쪽 끝줄까지 옮기면 이깁니다. 벽은 10장이고, 상대 길을 완전히 막는 자리에는 놓을 수 없습니다. 되돌리기는 없습니다.</p>
+    </div>
+    <div class="banner" id="banner" role="status" aria-live="assertive" hidden>
+      <span id="banner-text"></span>
+      <button type="button" id="banner-restart">다시 시작</button>
+    </div>
+  </main>
+
+  <details class="rules">
+    <summary>규칙 요약</summary>
+    <ul>
+      <li>9×9 판에서 사람은 아래, 에이전트는 위에서 시작합니다. 자기 말을 반대쪽 끝줄에 먼저 올리는 쪽이 이깁니다.</li>
+      <li>한 차례에 말을 한 칸 옮기거나 벽 한 장을 놓습니다. 벽은 각자 10장이며 두 칸 길이입니다.</li>
+      <li>상대 말과 붙어 있으면 뛰어넘을 수 있고, 그 뒤가 막혀 있으면 옆으로 비켜 뛸 수 있습니다.</li>
+      <li>벽은 다른 벽과 겹칠 수 없고, 어느 쪽이든 목표줄로 가는 길을 완전히 막는 자리에는 놓을 수 없습니다.</li>
+      <li>벽 놓기는 <kbd>F</kbd>, 가로와 세로 바꾸기는 <kbd>R</kbd>, 취소는 <kbd>Esc</kbd> 입니다. 터치는 첫 번째 누름이 미리보기, 같은 자리 두 번째 누름이 설치입니다.</li>
+      <li>되돌리기는 없습니다. 300수가 지나면 무승부입니다.</li>
+    </ul>
+  </details>
+
+  <footer class="foot">
+    <a href="https://github.com/draveos/Quoridor-Agents">GitHub</a>
+    <span>규칙 엔진은 pyquoridor 를 JS 로 옮겼습니다.</span>
+  </footer>
+</div>
+<script src="rules.js"></script>
+<script src="ui.js"></script>
+</body>
+</html>
