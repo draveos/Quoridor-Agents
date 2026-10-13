@@ -149,7 +149,7 @@
     if (can3d === false) return Promise.resolve(null);
     let imp;
     try { imp = new Function('u', 'return import(u)'); } catch (e) { can3d = false; return Promise.resolve(null); }
-    return imp('./view3d.js?v=2')
+    return imp('./view3d.js?v=3')
       .then(m => { view3d = m.createView3D(canvas3d, handlers, { reduceMotion: () => reduceMotion.matches, badge: badge3d }); if (!view3d) can3d = false; else can3d = true; return view3d; })
       .catch(() => { can3d = false; return null; });
   }

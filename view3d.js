@@ -238,7 +238,7 @@ export function createView3D(canvas, handlers, opts) {
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     if (!dragged && Math.hypot(dx, dy) < 4) return;
     dragged = true;
-    orbit.theta = drag.theta - dx * 0.006;
+    orbit.theta = drag.theta + dx * 0.006;
     orbit.phi = Math.min(1.3, Math.max(0.3, drag.phi - dy * 0.005));
     placeCamera(); requestFrame();
   });
