@@ -8,7 +8,7 @@ Each agent runs in a Web Worker, so the page stays responsive while it searches.
 
 ## Agents
 
-Both agents come from Sejin Kim's [quoridor-arena](https://github.com/draveos/quoridor-arena) experiments, where AI-written agents played each other in a league.
+Both agents come from Sejin Kim's quoridor-arena experiments (a local league, not yet published), where AI-written agents played each other in a league.
 
 | File | Origin |
 |---|---|
