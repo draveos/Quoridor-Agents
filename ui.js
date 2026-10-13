@@ -81,7 +81,7 @@
       const before = window.QAgent;
       const sc = document.createElement('script');
       sc.src = 'agents/' + key + '.js';
-      sc.onload = () => resolve(typeof window.QAgent === 'function' && (window.QAgent !== before || key === 'codex') ? window.QAgent : null);
+      sc.onload = () => { const c = key === 'claude' ? window.QAgentClaude : window.QAgent; resolve(typeof c === 'function' && (c !== before || key !== 'codex') ? c : null); };
       sc.onerror = () => resolve(null);
       document.head.appendChild(sc);
     });
